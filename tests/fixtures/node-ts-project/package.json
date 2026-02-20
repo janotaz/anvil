@@ -1,0 +1,14 @@
+{
+  "name": "fixture-node-ts",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vitest": "^3.0.0",
+    "eslint": "^9.0.0"
+  }
+}
