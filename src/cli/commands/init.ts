@@ -42,10 +42,26 @@ const realFs: FileSystem = {
  * Detects project characteristics and generates Claude Code configuration files.
  */
 export async function initCommand(options: InitOptions): Promise<void> {
+  const log = console.log.bind(console); // eslint-disable-line no-console
+  const logError = console.error.bind(console); // eslint-disable-line no-console
+
   const projectPath = path.resolve(options.path ?? process.cwd());
 
-  // eslint-disable-next-line no-console
-  console.log(`Analyzing project at ${projectPath}...\n`);
+  // Verify the project directory exists
+  try {
+    const stat = await fs.promises.stat(projectPath);
+    if (!stat.isDirectory()) {
+      logError(`Error: ${projectPath} is not a directory.`);
+      process.exitCode = 1;
+      return;
+    }
+  } catch {
+    logError(`Error: Directory not found: ${projectPath}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  log(`Analyzing project at ${projectPath}...\n`);
 
   const detection = await detectProject(projectPath, realFs);
 
@@ -61,7 +77,16 @@ export async function initCommand(options: InitOptions): Promise<void> {
   }
 
   // Write files
-  await writeFiles(projectPath, files, options.force === true);
+  const { written, skipped, errors } = await writeFiles(projectPath, files, options.force === true);
+
+  if (errors > 0) {
+    logError(`\n${String(errors)} file(s) failed to write.`);
+    process.exitCode = 1;
+  } else if (written === 0 && skipped > 0) {
+    log(`\nAll ${String(skipped)} file(s) already exist. Use --force to overwrite.`);
+  } else {
+    log("\nDone. Review the generated files and customize as needed.");
+  }
 }
 
 function printDetectionSummary(
@@ -108,12 +133,30 @@ function printDryRun(files: GeneratedFile[]): void {
   }
 }
 
+interface WriteResult {
+  written: number;
+  skipped: number;
+  errors: number;
+}
+
 async function writeFiles(
   projectPath: string,
   files: GeneratedFile[],
   force: boolean,
-): Promise<void> {
+): Promise<WriteResult> {
   const log = console.log.bind(console); // eslint-disable-line no-console
+  const logError = console.error.bind(console); // eslint-disable-line no-console
+  const result: WriteResult = { written: 0, skipped: 0, errors: 0 };
+
+  // Validate all paths are safe before writing anything
+  for (const file of files) {
+    const resolved = path.resolve(projectPath, file.relativePath);
+    if (!resolved.startsWith(projectPath + path.sep) && resolved !== projectPath) {
+      logError(`  Error: ${file.relativePath} resolves outside project directory. Skipping.`);
+      result.errors++;
+      return result;
+    }
+  }
 
   for (const file of files) {
     const fullPath = path.join(projectPath, file.relativePath);
@@ -124,19 +167,27 @@ async function writeFiles(
       try {
         await fs.promises.access(fullPath);
         log(`  Skipped ${file.relativePath} (already exists, use --force to overwrite)`);
+        result.skipped++;
         continue;
       } catch {
         // File doesn't exist, proceed
       }
     }
 
-    // Ensure directory exists
-    await fs.promises.mkdir(dir, { recursive: true });
+    try {
+      // Ensure directory exists
+      await fs.promises.mkdir(dir, { recursive: true });
 
-    // Write file
-    await fs.promises.writeFile(fullPath, file.content, "utf-8");
-    log(`  Created ${file.relativePath}`);
+      // Write file
+      await fs.promises.writeFile(fullPath, file.content, "utf-8");
+      log(`  Created ${file.relativePath}`);
+      result.written++;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      logError(`  Error writing ${file.relativePath}: ${message}`);
+      result.errors++;
+    }
   }
 
-  log("\nDone. Review the generated files and customize as needed.");
+  return result;
 }
