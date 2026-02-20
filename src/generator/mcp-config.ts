@@ -7,11 +7,14 @@ interface McpServerConfig {
 }
 
 /**
- * Generate MCP server configuration based on detected project characteristics.
+ * Generate MCP server configuration as a plain object.
  *
- * Returns a JSON string for .mcp.json, or null if no servers are relevant.
+ * Returns the servers record, or null if no servers are relevant.
+ * Used by the generation orchestrator for merging with hooks config.
  */
-export function generateMcpConfig(detection: DetectionResult): string | null {
+export function generateMcpConfigObject(
+  detection: DetectionResult,
+): Record<string, McpServerConfig> | null {
   const servers: Record<string, McpServerConfig> = {};
 
   // Memory: always configured (cross-session memory is universally useful)
@@ -21,22 +24,27 @@ export function generateMcpConfig(detection: DetectionResult): string | null {
   };
 
   // Codebase intelligence: depends on language
-  if (
+  const hasTs =
     detection.languages.includes("typescript") ||
-    detection.languages.includes("javascript")
-  ) {
+    detection.languages.includes("javascript");
+  const hasPython = detection.languages.includes("python");
+
+  if (hasTs) {
     servers["lsp"] = {
       command: "npx",
       args: ["-y", "@mizchi/lsmcp", "-p", "tsgo"],
     };
-  } else if (detection.languages.includes("python")) {
+  }
+
+  // Add tree-sitter for Python (even in mixed projects where lsp handles TS)
+  if (hasPython) {
     servers["tree-sitter"] = {
       command: "python",
       args: ["-m", "mcp_server_tree_sitter"],
     };
   }
 
-  // GitHub: only if .github/ directory exists
+  // GitHub: only if CI detected
   if (detection.ciProvider === "github-actions") {
     servers["github"] = {
       command: "npx",
@@ -56,6 +64,18 @@ export function generateMcpConfig(detection: DetectionResult): string | null {
   if (Object.keys(servers).length === 0) {
     return null;
   }
+
+  return servers;
+}
+
+/**
+ * Generate MCP server configuration as a JSON string for .mcp.json.
+ *
+ * Returns a JSON string, or null if no servers are relevant.
+ */
+export function generateMcpConfig(detection: DetectionResult): string | null {
+  const servers = generateMcpConfigObject(detection);
+  if (servers === null) return null;
 
   const config = { mcpServers: servers };
   return JSON.stringify(config, null, 2) + "\n";

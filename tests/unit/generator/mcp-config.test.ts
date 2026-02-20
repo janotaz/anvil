@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateMcpConfig } from "../../../src/generator/mcp-config.js";
+import { generateMcpConfig, generateMcpConfigObject } from "../../../src/generator/mcp-config.js";
 import { emptyDetectionResult } from "../../../src/detector/types.js";
 
 describe("generateMcpConfig", () => {
@@ -94,6 +94,15 @@ describe("generateMcpConfig", () => {
 
     const output = generateMcpConfig(result);
     expect(() => JSON.parse(output!)).not.toThrow();
+  });
+
+  it("includes both lsp and tree-sitter for mixed TS+Python project", () => {
+    const result = emptyDetectionResult();
+    result.languages = ["typescript", "python"];
+    const servers = generateMcpConfigObject(result);
+    expect(servers).toHaveProperty("lsp");
+    expect(servers).toHaveProperty("tree-sitter");
+    expect(servers).toHaveProperty("memory");
   });
 
   it("includes all 4 servers for full TypeScript project", () => {

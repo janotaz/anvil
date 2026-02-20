@@ -123,12 +123,18 @@ function buildMcpSection(detection: DetectionResult): string[] {
 
   notes.push("- **memory** — Cross-session context via mcp-memory-service (semantic search)");
 
-  if (
+  const hasTs =
     detection.languages.includes("typescript") ||
-    detection.languages.includes("javascript")
-  ) {
+    detection.languages.includes("javascript");
+  const hasPython = detection.languages.includes("python");
+
+  if (hasTs) {
     notes.push("- **lsp** — Code intelligence via lsmcp (go-to-definition, find references, rename)");
-  } else {
+  }
+  if (hasPython) {
+    notes.push("- **tree-sitter** — Code intelligence via mcp-server-tree-sitter (AST analysis, symbols)");
+  }
+  if (!hasTs && !hasPython) {
     notes.push("- **tree-sitter** — Code intelligence via mcp-server-tree-sitter (AST analysis, symbols)");
   }
 

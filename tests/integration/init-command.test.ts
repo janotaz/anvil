@@ -240,8 +240,11 @@ describe("init command integration", () => {
       const result = await detectProject(projectPath, realFs);
       const files = generateAll(result, { local: true });
 
-      const mcpConfig = files.find((f) => f.content.includes("mcpServers"));
-      expect(mcpConfig?.relativePath).toBe(".claude/settings.local.json");
+      const settingsFile = files.find(
+        (f) => f.relativePath === ".claude/settings.local.json",
+      );
+      expect(settingsFile).toBeDefined();
+      expect(settingsFile?.content).toContain("mcpServers");
     });
 
     it("writes MCP config to .mcp.json when local=false", async () => {
@@ -251,6 +254,41 @@ describe("init command integration", () => {
 
       const mcpConfig = files.find((f) => f.content.includes("mcpServers"));
       expect(mcpConfig?.relativePath).toBe(".mcp.json");
+    });
+
+    it("merges MCP config and hooks into single file when local=true", async () => {
+      const projectPath = path.join(FIXTURES_DIR, "node-ts-project");
+      const result = await detectProject(projectPath, realFs);
+      const files = generateAll(result, { local: true });
+
+      // Should produce exactly one .claude/settings.local.json
+      const settingsFiles = files.filter(
+        (f) => f.relativePath === ".claude/settings.local.json",
+      );
+      expect(settingsFiles).toHaveLength(1);
+
+      // It should contain both mcpServers and hooks
+      const config = JSON.parse(settingsFiles[0]!.content) as Record<string, unknown>;
+      expect(config).toHaveProperty("mcpServers");
+      expect(config).toHaveProperty("hooks");
+    });
+
+    it("keeps MCP and hooks in separate files when local=false", async () => {
+      const projectPath = path.join(FIXTURES_DIR, "node-ts-project");
+      const result = await detectProject(projectPath, realFs);
+      const files = generateAll(result, { local: false });
+
+      const mcpFile = files.find((f) => f.relativePath === ".mcp.json");
+      const hooksFile = files.find(
+        (f) =>
+          f.relativePath === ".claude/settings.local.json" &&
+          f.content.includes("hooks"),
+      );
+
+      expect(mcpFile).toBeDefined();
+      expect(hooksFile).toBeDefined();
+      expect(mcpFile?.content).not.toContain("hooks");
+      expect(hooksFile?.content).not.toContain("mcpServers");
     });
   });
 });

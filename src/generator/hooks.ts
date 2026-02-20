@@ -14,12 +14,15 @@ interface HooksConfig {
 }
 
 /**
- * Generate Claude Code hooks configuration based on detected project tools.
+ * Generate hooks configuration as a plain object.
  *
- * Returns a JSON string for .claude/settings.local.json, or null if no hooks apply.
+ * Returns the hooks record, or null if no hooks apply.
+ * Used by the generation orchestrator for merging with MCP config.
  */
-export function generateHooksConfig(detection: DetectionResult): string | null {
-  const config: HooksConfig = { hooks: {} };
+export function generateHooksConfigObject(
+  detection: DetectionResult,
+): HooksConfig["hooks"] | null {
+  const hooks: HooksConfig["hooks"] = {};
   const postToolUse: HookEntry[] = [];
 
   // Auto-format after Claude edits files
@@ -33,15 +36,27 @@ export function generateHooksConfig(detection: DetectionResult): string | null {
   }
 
   if (postToolUse.length > 0) {
-    config.hooks.PostToolUse = postToolUse;
+    hooks.PostToolUse = postToolUse;
   }
 
   // Only return if we have at least one hook
-  if (Object.keys(config.hooks).length === 0) {
+  if (Object.keys(hooks).length === 0) {
     return null;
   }
 
-  return JSON.stringify(config, null, 2) + "\n";
+  return hooks;
+}
+
+/**
+ * Generate Claude Code hooks configuration based on detected project tools.
+ *
+ * Returns a JSON string for .claude/settings.local.json, or null if no hooks apply.
+ */
+export function generateHooksConfig(detection: DetectionResult): string | null {
+  const hooks = generateHooksConfigObject(detection);
+  if (hooks === null) return null;
+
+  return JSON.stringify({ hooks }, null, 2) + "\n";
 }
 
 /**
