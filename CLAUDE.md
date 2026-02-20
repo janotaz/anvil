@@ -25,10 +25,10 @@ vitest run tests/unit/detector/language.test.ts  # Run single test file
 
 Single npm package, CLI entry point. Two module groups:
 
-- **Detectors** (`src/detector/`): Analyze project files to extract language, package manager, test framework, build system, CI provider, linter. Each detector reads config files (no command execution). Results typed with Zod schemas in `src/detector/types.ts`.
-- **Generators** (`src/generator/`): Produce output files from detection results. CLAUDE.md (`claude-md.ts`), .mcp.json (`mcp-config.ts`), hooks (`hooks.ts`), slash commands (`slash-commands.ts`). String interpolation, no templating engine.
+- **Detectors** (`src/detector/`): Analyze project files to extract language, package manager, test framework, build system, CI provider, linter. Each detector reads config files through a `FileSystem` interface (no command execution). Results typed with Zod schemas in `src/detector/types.ts`. Orchestrated by `src/detector/index.ts` which runs detectors in parallel.
+- **Generators** (`src/generator/`): Produce output files from detection results. CLAUDE.md (`claude-md.ts`), .mcp.json (`mcp-config.ts`), hooks (`hooks.ts`), slash commands (`slash-commands.ts`). String interpolation, no templating engine. When `--local`, MCP config and hooks are merged into a single `.claude/settings.local.json`.
 
-CLI (`src/cli/`) uses commander for commands (`init`, `doctor`) and enquirer for interactive prompts.
+CLI (`src/cli/`) uses commander for commands (`init`, `doctor`). `init` validates paths, writes with error tracking. `doctor` checks command availability via `which` and validates env vars.
 
 ## Code Standards
 

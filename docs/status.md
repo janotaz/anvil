@@ -1,63 +1,48 @@
 # Anvil - Project Status
 
-## What Anvil Is
+## Current State (2026-02-20)
 
-Anvil is a **scaffolder for Claude Code**. It analyzes your project and generates tailored configuration so Claude Code works well out of the box.
+**Phases 1-5 complete. Ready for npm publish.**
 
-```bash
-npx anvil init
+### What's Built
+
+- **7 detectors**: language, package manager, test framework, build system, CI provider, linter, monorepo
+- **4 generators**: CLAUDE.md, .mcp.json, hooks config, slash commands
+- **2 CLI commands**: `anvil init`, `anvil doctor`
+- **152 tests** across 14 test files (unit + integration)
+- **5 fixture projects**: node-ts, python (uv), poetry, setuptools, empty
+
+### Supported Ecosystems
+
+| | Node.js/TypeScript | Python |
+|---|---|---|
+| Package managers | npm, yarn, pnpm, bun | pip, poetry, uv, pipenv |
+| Test frameworks | vitest, jest, mocha | pytest, unittest |
+| Build systems | tsc, vite, webpack, esbuild, rollup | setuptools, hatch, maturin |
+| Linters | eslint, prettier, biome | ruff, black, flake8, mypy |
+| CI | GitHub Actions | GitHub Actions |
+
+### Key Design Decisions Made
+
+1. **Scaffolder, not MCP server** — existing servers are better than anything we'd build
+2. **Parse config files, don't execute commands** — read package.json, pyproject.toml, etc.
+3. **MCP + hooks merge** — when `--local`, both go into single `.claude/settings.local.json`
+4. **Mixed-language support** — TS+Python projects get both lsmcp and tree-sitter
+5. **unittest detection** — via setup.cfg `[unittest]` section or test_*.py file discovery
+
+### Architecture
+
+```
+src/
+├── cli/          # Commander CLI: init + doctor
+├── detector/     # 7 detectors + FileSystem interface + Zod schemas
+├── generator/    # CLAUDE.md, .mcp.json, hooks, slash commands
+└── index.ts      # Public API exports
 ```
 
-This generates:
-- **CLAUDE.md** with your actual build/test/lint commands
-- **.mcp.json** configuring proven MCP servers (memory, codebase intelligence, CI, coverage)
-- **Hooks** for auto-formatting, lint checks, and dangerous command blocking
-- **Slash commands** for common workflows
+## Remaining Work
 
-Plus `anvil doctor` to validate everything is configured correctly.
-
-## How We Got Here
-
-Anvil was originally planned as a full MCP server implementing memory, codebase intelligence, and CI/CD tools from scratch. After evaluating the MCP ecosystem in February 2026 (see `docs/assessment.md`), we found that:
-
-- **Memory:** mcp-memory-service (1.4k stars) does hybrid BM25+vector search with local ONNX embeddings
-- **Codebase:** lsmcp (439 stars) provides real LSP-based intelligence; mcp-server-tree-sitter (264 stars) covers AST analysis
-- **CI/CD:** github-mcp-server (27k stars, official) handles Actions; test-coverage-mcp handles LCOV
-- Every individual feature had production-ready implementations
-
-Building from scratch would mean reimplementing commodity features and competing against official servers from Anthropic and GitHub. Instead, Anvil pivoted to configuring the best existing servers.
-
-## Current State (as of 2026-02-20)
-
-**Planning complete. Implementation not started.**
-
-What exists:
-- `README.md` — Project overview (rewritten for scaffolder direction)
-- `CLAUDE.md` — Claude Code development guidance
-- `docs/assessment.md` — claude-flow audit + MCP ecosystem analysis
-- `docs/plan.md` — Implementation plan (rewritten for scaffolder architecture)
-- `docs/status.md` — This file
-
-What doesn't exist yet:
-- No `package.json`, `tsconfig.json`, or config files
-- No source code (`src/`)
-- No tests (`tests/`)
-
-## Next Step
-
-**Phase 1: Foundation** — Scaffold the project (package.json, tsconfig, eslint, vitest), create CLI skeleton with commander, define Zod schemas for detection results.
-
-## Tech Stack
-
-TypeScript (strict), Node.js 20+, commander, enquirer, Zod, Vitest, ESLint 9 + Prettier.
-
-Notably absent (delegated to existing servers): better-sqlite3, tree-sitter, ONNX, Octokit, MCP SDK.
-
-## Implementation Phases
-
-1. **Foundation** — Scaffold, CLI skeleton, Zod schemas
-2. **Detectors (Node.js/TS)** — Language, package manager, test, build, CI, linter detection
-3. **Detectors (Python)** — Same detectors for Python ecosystem
-4. **Generators** — CLAUDE.md, .mcp.json, hooks, slash commands
-5. **CLI Polish** — Interactive mode, --dry-run, --force, anvil doctor
-6. **Publish** — npm publish workflow, final docs
+- **Interactive mode** — enquirer prompts when detection is ambiguous (deferred, not blocking)
+- **npm publish** — GitHub Actions release workflow
+- **Rust/Go detection** — v1.1 scope
+- **GitLab CI, CircleCI** — v1.1 scope

@@ -55,6 +55,7 @@ Anvil parses your config files to extract real information (not guesses):
 npx anvil init              # Detect project and generate config
 npx anvil init --local      # Write MCP config to .claude/settings.local.json (gitignored)
 npx anvil init --dry-run    # Show what would be generated without writing
+npx anvil init --force      # Overwrite existing files
 npx anvil doctor            # Validate existing configuration
 ```
 
