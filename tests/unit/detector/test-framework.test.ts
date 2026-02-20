@@ -145,6 +145,55 @@ describe("detectTestFramework", () => {
     expect(result?.command.source).toBe("setup.cfg [tool:pytest]");
   });
 
+  // Python: unittest
+  it("detects unittest from setup.cfg [unittest]", async () => {
+    const fs = mockFs({
+      "/p/setup.cfg": "[unittest]\nstart_dir = tests",
+    });
+    const result = await detectTestFramework("/p", fs);
+    expect(result).toEqual({
+      name: "unittest",
+      command: { command: "python -m unittest discover", source: "setup.cfg [unittest]" },
+    });
+  });
+
+  it("detects unittest from test_*.py files in tests/ directory", async () => {
+    const fs: FileSystem = {
+      async exists(path: string): Promise<boolean> {
+        return ["/p/pyproject.toml", "/p/tests"].includes(path);
+      },
+      async readFile(): Promise<string | null> {
+        return "[project]\nname = 'test'";
+      },
+      async readDir(path: string): Promise<string[]> {
+        if (path === "/p/tests") return ["test_main.py", "test_utils.py", "__init__.py"];
+        return [];
+      },
+    };
+    const result = await detectTestFramework("/p", fs);
+    expect(result).toEqual({
+      name: "unittest",
+      command: { command: "python -m unittest discover", source: "tests/ directory" },
+    });
+  });
+
+  it("prefers pytest over unittest when both signals exist", async () => {
+    const fs: FileSystem = {
+      async exists(path: string): Promise<boolean> {
+        return ["/p/conftest.py", "/p/pyproject.toml", "/p/tests"].includes(path);
+      },
+      async readFile(): Promise<string | null> {
+        return null;
+      },
+      async readDir(path: string): Promise<string[]> {
+        if (path === "/p/tests") return ["test_main.py"];
+        return [];
+      },
+    };
+    const result = await detectTestFramework("/p", fs);
+    expect(result?.name).toBe("pytest");
+  });
+
   // No signals
   it("returns null when no test framework found", async () => {
     const fs = mockFs({});

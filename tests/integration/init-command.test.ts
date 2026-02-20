@@ -151,6 +151,65 @@ describe("init command integration", () => {
     });
   });
 
+  describe("Poetry project", () => {
+    const projectPath = path.join(FIXTURES_DIR, "poetry-project");
+
+    it("detects all characteristics", async () => {
+      const result = await detectProject(projectPath, realFs);
+
+      expect(result.languages).toContain("python");
+      expect(result.packageManager).toBe("poetry");
+      expect(result.testFramework?.name).toBe("pytest");
+      expect(result.linters.some((l) => l.name === "black")).toBe(true);
+      expect(result.linters.some((l) => l.name === "mypy")).toBe(true);
+    });
+
+    it("generates CLAUDE.md with poetry install", async () => {
+      const result = await detectProject(projectPath, realFs);
+      const files = generateAll(result, { local: false });
+
+      const claudeMd = files.find((f) => f.relativePath === "CLAUDE.md");
+      expect(claudeMd?.content).toContain("poetry install");
+      expect(claudeMd?.content).toContain("pytest");
+    });
+
+    it("generates black formatter hook", async () => {
+      const result = await detectProject(projectPath, realFs);
+      const files = generateAll(result, { local: false });
+
+      const hooks = files.find(
+        (f) =>
+          f.relativePath === ".claude/settings.local.json" &&
+          f.content.includes("hooks"),
+      );
+      expect(hooks?.content).toContain("black");
+    });
+  });
+
+  describe("Setuptools project", () => {
+    const projectPath = path.join(FIXTURES_DIR, "setuptools-project");
+
+    it("detects all characteristics", async () => {
+      const result = await detectProject(projectPath, realFs);
+
+      expect(result.languages).toContain("python");
+      expect(result.packageManager).toBe("pip");
+      expect(result.testFramework?.name).toBe("pytest");
+      expect(result.testFramework?.command.source).toBe("setup.cfg [tool:pytest]");
+      expect(result.buildSystem?.name).toBe("setuptools");
+      expect(result.linters.some((l) => l.name === "flake8")).toBe(true);
+    });
+
+    it("generates CLAUDE.md with pip install", async () => {
+      const result = await detectProject(projectPath, realFs);
+      const files = generateAll(result, { local: false });
+
+      const claudeMd = files.find((f) => f.relativePath === "CLAUDE.md");
+      expect(claudeMd?.content).toContain("pip install");
+      expect(claudeMd?.content).toContain("pytest");
+    });
+  });
+
   describe("Empty project", () => {
     const projectPath = path.join(FIXTURES_DIR, "empty-project");
 

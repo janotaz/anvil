@@ -156,5 +156,37 @@ async function detectPythonTestFramework(
     };
   }
 
+  // unittest: detect from test directory with test_*.py files or explicit setup.cfg config
+  if (setupCfg !== null && setupCfg.includes("[unittest]")) {
+    return {
+      name: "unittest",
+      command: { command: "python -m unittest discover", source: "setup.cfg [unittest]" },
+    };
+  }
+
+  // unittest fallback: tests/ directory with test_*.py pattern (only if Python detected)
+  const hasPyproject = await fs.exists(`${projectPath}/pyproject.toml`);
+  const hasSetupPy = await fs.exists(`${projectPath}/setup.py`);
+  const hasRequirements = await fs.exists(`${projectPath}/requirements.txt`);
+
+  if (hasPyproject || hasSetupPy || hasRequirements) {
+    const testDirs = ["tests", "test"];
+    for (const testDir of testDirs) {
+      const entries = await fs.readDir(`${projectPath}/${testDir}`);
+      const hasTestFiles = entries.some(
+        (e) => e.startsWith("test_") && e.endsWith(".py"),
+      );
+      if (hasTestFiles) {
+        return {
+          name: "unittest",
+          command: {
+            command: "python -m unittest discover",
+            source: `${testDir}/ directory`,
+          },
+        };
+      }
+    }
+  }
+
   return null;
 }

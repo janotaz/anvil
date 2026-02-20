@@ -52,6 +52,22 @@ describe("detectLanguage", () => {
     expect(result).toEqual(["python"]);
   });
 
+  it("detects Python from setup.py", async () => {
+    const fs = mockFs({
+      "/project/setup.py": "from setuptools import setup\nsetup(name='test')",
+    });
+    const result = await detectLanguage("/project", fs);
+    expect(result).toEqual(["python"]);
+  });
+
+  it("detects Python from setup.cfg", async () => {
+    const fs = mockFs({
+      "/project/setup.cfg": "[metadata]\nname = test",
+    });
+    const result = await detectLanguage("/project", fs);
+    expect(result).toEqual(["python"]);
+  });
+
   it("detects Python from requirements.txt", async () => {
     const fs = mockFs({
       "/project/requirements.txt": "flask==2.0.0",
