@@ -1,22 +1,15 @@
 # Anvil — Implementation Plan
 
-> A genuine Claude Code extension for enterprise-grade software development.
-
-## Project Name: Anvil
-
-An anvil is where raw material is shaped into useful tools through real craftsmanship. No theater — just solid engineering.
-
----
+> A scaffolder for Claude Code that configures proven MCP servers, generates tailored CLAUDE.md, and sets up hooks.
 
 ## What We're Building
 
-A single MCP server with three tool groups, backed by proven patterns and real implementations:
+A CLI tool (`npx anvil init`) that analyzes a developer's project and generates Claude Code configuration. Anvil doesn't build AI capabilities — it configures the best existing ones.
 
-1. **Memory** — Persistent cross-session context with semantic search
-2. **Codebase Intelligence** — Structural understanding of the repo via tree-sitter
-3. **CI/CD Integration** — Feedback loop from GitHub Actions into Claude's context
+### Core Commands
 
-Plus: a project scaffolder that generates a focused CLAUDE.md and Claude Code hooks for any repo.
+- **`anvil init`** — Detect project characteristics, generate CLAUDE.md, configure MCP servers, set up hooks and slash commands
+- **`anvil doctor`** — Validate existing configuration (servers reachable, commands work, env vars set)
 
 ---
 
@@ -25,175 +18,189 @@ Plus: a project scaffolder that generates a focused CLAUDE.md and Claude Code ho
 ```
 anvil/
 ├── src/
-│   ├── server.ts                 # MCP server (JSON-RPC 2.0 over stdio)
-│   ├── tools/
-│   │   ├── memory.ts             # memory_store, memory_search, memory_list, memory_forget
-│   │   ├── codebase.ts           # codebase_index, codebase_query, codebase_symbols
-│   │   ├── ci.ts                 # ci_status, ci_logs, ci_coverage
-│   │   └── index.ts              # Tool registry
-│   ├── memory/
-│   │   ├── store.ts              # SQLite backend (better-sqlite3)
-│   │   ├── embeddings.ts         # Local embedding generation (ONNX runtime)
-│   │   └── index.ts
-│   ├── indexer/
-│   │   ├── parser.ts             # Tree-sitter parsing
-│   │   ├── graph.ts              # Dependency graph construction
-│   │   ├── symbols.ts            # Symbol extraction (functions, classes, types)
-│   │   └── index.ts
-│   ├── ci/
-│   │   ├── github-actions.ts     # GitHub Actions API client
-│   │   ├── parsers.ts            # Log/coverage report parsers
-│   │   └── index.ts
-│   └── index.ts                  # Entry point
+│   ├── cli/
+│   │   ├── index.ts              # CLI entry (commander)
+│   │   ├── commands/
+│   │   │   ├── init.ts           # anvil init
+│   │   │   └── doctor.ts         # anvil doctor
+│   │   └── prompts.ts            # Interactive prompts (enquirer)
+│   ├── detector/
+│   │   ├── index.ts              # Detection orchestrator
+│   │   ├── language.ts           # Language detection
+│   │   ├── package-manager.ts    # Package manager detection
+│   │   ├── test-framework.ts     # Test framework detection
+│   │   ├── build-system.ts       # Build system detection
+│   │   ├── ci-provider.ts        # CI provider detection
+│   │   ├── linter.ts             # Linter detection
+│   │   └── types.ts              # Zod schemas for detection results
+│   ├── generator/
+│   │   ├── index.ts              # Generation orchestrator
+│   │   ├── claude-md.ts          # CLAUDE.md generation
+│   │   ├── mcp-config.ts         # .mcp.json generation
+│   │   ├── hooks.ts              # Hooks config generation
+│   │   └── slash-commands.ts     # .claude/commands/ generation
+│   └── index.ts                  # Package entry
 ├── tests/
 │   ├── unit/
-│   │   ├── memory/
-│   │   │   ├── store.test.ts
-│   │   │   └── embeddings.test.ts
-│   │   ├── indexer/
-│   │   │   ├── parser.test.ts
-│   │   │   ├── graph.test.ts
-│   │   │   └── symbols.test.ts
-│   │   ├── ci/
-│   │   │   ├── github-actions.test.ts
-│   │   │   └── parsers.test.ts
-│   │   └── tools/
-│   │       ├── memory.test.ts
-│   │       ├── codebase.test.ts
-│   │       └── ci.test.ts
+│   │   ├── detector/             # One test file per detector
+│   │   └── generator/            # One test file per generator
 │   ├── integration/
-│   │   ├── mcp-server.test.ts    # Full MCP protocol tests
-│   │   ├── memory-e2e.test.ts    # Store → search → retrieve cycle
-│   │   └── indexer-e2e.test.ts   # Parse → query real repos
+│   │   ├── init-command.test.ts  # Full init flow against fixture projects
+│   │   └── doctor-command.test.ts
 │   └── fixtures/
-│       ├── sample-repo/          # Minimal repo for indexer tests
-│       ├── ci-responses/         # Recorded GitHub API responses
-│       └── embeddings/           # Pre-computed test embeddings
-├── docs/
-│   ├── assessment.md             # Claude-flow audit findings
-│   ├── plan.md                   # This document
-│   └── architecture.md           # Technical deep-dive (generated during build)
-├── .github/
-│   └── workflows/
-│       ├── ci.yml                # Build, lint, test on every PR
-│       ├── release.yml           # Automated npm publish on tags
-│       └── codeql.yml            # GitHub security scanning
+│       ├── node-ts-project/      # Minimal Node.js/TS project
+│       ├── python-project/       # Minimal Python project
+│       ├── monorepo/             # Monorepo fixture
+│       └── empty-project/        # Edge case: empty directory
 ├── package.json
 ├── tsconfig.json
 ├── vitest.config.ts
-├── eslint.config.js              # Flat config (ESLint 9+)
+├── eslint.config.js
 ├── .prettierrc
 ├── CLAUDE.md
-├── CHANGELOG.md
-├── LICENSE
 └── README.md
 ```
 
 ### Key Design Decisions
 
-**Single package, not a monorepo.** claude-flow had 20 packages for no reason. This is one npm package with one entry point. If it grows, we split later with evidence, not speculation.
+**Scaffolder, not MCP server.** The original plan was to build a full MCP server with memory, codebase intelligence, and CI tools. After evaluating the ecosystem (see `docs/assessment.md`), every individual capability has production-ready implementations. Anvil configures the best existing servers instead of reimplementing them. Claude orchestrates multi-server workflows natively — no glue server needed.
 
-**better-sqlite3, not sql.js.** sql.js (WASM SQLite) is slower and exists for browser compatibility we don't need. better-sqlite3 is synchronous, faster, and purpose-built for Node.js servers. Falls back to sql.js only if native compilation fails.
+**Parse config files, don't execute commands.** Detection reads package.json scripts, pyproject.toml, tsconfig.json, etc. It doesn't run `npm test --help` or similar. This is faster, safer, and works without installed dependencies.
 
-**Tree-sitter for parsing, not regex.** Regex-based code analysis is fragile. Tree-sitter gives us real ASTs for 100+ languages, is battle-tested (used by GitHub, Neovim, Zed), and has Node.js bindings.
+**Write `.mcp.json` by default.** Project-scoped, version-controllable. Team members get the same MCP servers automatically. `--local` flag writes to `.claude/settings.local.json` instead for sensitive or personal configs.
 
-**Local embeddings via ONNX Runtime.** No external API calls for embeddings. Use `@xenova/transformers` (now `@huggingface/transformers`) to run `all-MiniLM-L6-v2` locally. ~80MB model, runs in <50ms per query. Falls back to TF-IDF if ONNX isn't available.
+**No templating engine.** Generated files use string interpolation. CLAUDE.md and .mcp.json are simple enough that Handlebars/EJS adds unnecessary complexity.
 
-**GitHub Actions first.** Enterprise CI/CD is fragmented (Jenkins, GitLab, CircleCI, etc.). We start with GitHub Actions because it has the best API and largest share. Add others via adapter pattern later, driven by actual demand.
+**Node.js/TS + Python in v1.** These cover the majority of Claude Code users. Rust and Go in v1.1 based on demand.
 
 ---
 
-## Tool Specifications
+## Detection Specifications
 
-### Memory Tools
+### What Gets Detected
 
-#### `memory_store`
-```
-Input:  { key: string, value: string, tags?: string[], namespace?: string }
-Output: { stored: true, id: string, embedding_generated: boolean }
-```
-- Generates embedding from value text using local ONNX model
-- Stores in SQLite: id, key, value, embedding (BLOB), tags, namespace, created_at, accessed_at
-- Deduplicates by key within namespace (upsert)
+| Category | Signal Files | Extracted Info |
+|----------|-------------|----------------|
+| Language | `package.json`, `pyproject.toml`, `setup.py`, `requirements.txt` | Primary language(s) |
+| Package manager | `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `bun.lockb`, `uv.lock`, `poetry.lock` | Install command |
+| Test framework | vitest/jest/mocha configs, `package.json` scripts, `pyproject.toml [tool.pytest]` | Test command |
+| Build system | `tsconfig.json`, vite/webpack/esbuild configs, `package.json` scripts | Build command |
+| CI provider | `.github/workflows/*.yml` | CI server to configure |
+| Linter | eslint/prettier/biome/ruff configs | Lint command, format command |
+| Monorepo | `pnpm-workspace.yaml`, `nx.json`, `turbo.json` | Workspace structure |
 
-#### `memory_search`
-```
-Input:  { query: string, namespace?: string, limit?: number, min_similarity?: number }
-Output: { results: Array<{ key, value, similarity, tags, last_accessed }> }
-```
-- Generates query embedding
-- Cosine similarity search against stored embeddings
-- For <10k entries, brute-force is fast enough. Add HNSW only when profiling shows need.
+### Detection Approach (Medium Depth)
 
-#### `memory_list`
-```
-Input:  { namespace?: string, tag?: string, limit?: number }
-Output: { entries: Array<{ key, tags, namespace, created_at, accessed_at }> }
-```
+1. Check manifest file existence to determine language
+2. Parse scripts sections (package.json `scripts`, pyproject.toml `[tool.X]`) to extract actual commands
+3. Check for framework-specific config files (vitest.config.ts, jest.config.js, etc.)
+4. Fall back to convention-based defaults if scripts are empty
 
-#### `memory_forget`
-```
-Input:  { key?: string, namespace?: string, older_than_days?: number }
-Output: { deleted_count: number }
-```
+---
 
-### Codebase Intelligence Tools
+## Generation Specifications
 
-#### `codebase_index`
-```
-Input:  { path: string, languages?: string[], exclude?: string[] }
-Output: { files_indexed: number, symbols_found: number, duration_ms: number }
-```
-- Walks directory, parses each file with tree-sitter
-- Extracts: imports/exports, function signatures, class definitions, type declarations
-- Builds dependency graph (file A imports from file B)
-- Stores in SQLite for fast querying
-- Incremental: only re-parses changed files (mtime check)
+### CLAUDE.md
 
-#### `codebase_query`
-```
-Input:  { symbol?: string, file?: string, dependents?: boolean, dependencies?: boolean }
-Output: { files: Array<{ path, symbols, relationship }> }
-```
-- "What files import this module?" → dependents
-- "What does this file depend on?" → dependencies
-- "Where is this function defined?" → symbol lookup
-- "What would be affected if I change this interface?" → transitive dependents
+Generated with real extracted commands. Structure:
 
-#### `codebase_symbols`
-```
-Input:  { path: string, kind?: "function" | "class" | "type" | "variable" }
-Output: { symbols: Array<{ name, kind, line, signature, exported }> }
+```markdown
+# CLAUDE.md
+
+## Build & Test Commands
+<actual commands from package.json scripts or pyproject.toml>
+
+## Architecture
+<brief description based on detected framework — e.g., "Next.js app with App Router">
+
+## Key Directories
+<detected from actual directory structure>
+
+## Code Style
+<detected linter config summary>
+
+## MCP Servers Available
+<documentation of configured servers so Claude knows what tools it has>
+
+## Project-Specific Notes
+<placeholder for developer to fill in>
 ```
 
-### CI/CD Tools
+### .mcp.json
 
-#### `ci_status`
-```
-Input:  { repo?: string, branch?: string, pr?: number }
-Output: { runs: Array<{ id, status, conclusion, name, started_at, duration_s, url }> }
-```
-- Uses GitHub REST API (`GITHUB_TOKEN` from environment)
-- Returns latest workflow runs for the branch/PR
-- Highlights failures with job names
+Server selection based on detected stack:
 
-#### `ci_logs`
+```json
+{
+  "mcpServers": {
+    "memory": {
+      "command": "python",
+      "args": ["-m", "mcp_memory_service"],
+      "env": {}
+    },
+    "lsp": {
+      "command": "npx",
+      "args": ["-y", "@mizchi/lsmcp", "-p", "tsgo"]
+    },
+    "github": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "GITHUB_TOKEN", "ghcr.io/github/github-mcp-server"],
+      "env": { "GITHUB_TOKEN": "${GITHUB_TOKEN}" }
+    },
+    "coverage": {
+      "command": "npx",
+      "args": ["-y", "test-coverage-mcp"]
+    }
+  }
+}
 ```
-Input:  { run_id: number, job?: string, failed_only?: boolean }
-Output: { logs: string, annotations: Array<{ level, message, file, line }> }
-```
-- Downloads and parses CI log output
-- Extracts error annotations (file:line format)
-- Truncates to relevant sections (last 200 lines of failed steps)
 
-#### `ci_coverage`
+Servers are included only when relevant (e.g., no github-mcp-server if no .github/ directory).
+
+### Hooks Config
+
+Written to `.claude/settings.local.json`:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "type": "command",
+        "command": "<detected formatter command>"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "type": "command",
+        "command": "anvil-hooks/block-dangerous.sh"
+      }
+    ]
+  }
+}
 ```
-Input:  { pr?: number, branch?: string }
-Output: { total: number, diff: number, uncovered_files: Array<{ path, coverage }> }
-```
-- Parses coverage artifacts from CI runs (lcov, cobertura, istanbul)
-- Computes diff coverage (coverage of changed lines only)
-- Lists files below threshold
+
+### Slash Commands
+
+Generated in `.claude/commands/`:
+
+- `/review` — code review workflow using codebase intelligence
+- `/test` — run tests with coverage tracking
+- Custom commands based on detected scripts
+
+---
+
+## MCP Servers We Configure
+
+| Server | Install Method | When Configured |
+|--------|---------------|-----------------|
+| [mcp-memory-service](https://github.com/doobidoo/mcp-memory-service) | `pip install mcp-memory-service` | Always (cross-session memory is universally useful) |
+| [lsmcp](https://github.com/mizchi/lsmcp) | `npx @mizchi/lsmcp` | TypeScript, Go, or Rust projects |
+| [mcp-server-tree-sitter](https://github.com/wrale/mcp-server-tree-sitter) | `pip install mcp-server-tree-sitter` | Python projects, or when lsmcp doesn't cover the language |
+| [github-mcp-server](https://github.com/github/github-mcp-server) | Docker or npx | When .github/ directory exists |
+| [test-coverage-mcp](https://github.com/goldbergyoni/test-coverage-mcp) | `npx test-coverage-mcp` | When test framework is detected |
 
 ---
 
@@ -202,17 +209,60 @@ Output: { total: number, diff: number, uncovered_files: Array<{ path, coverage }
 | Component | Choice | Rationale |
 |-----------|--------|-----------|
 | Language | TypeScript 5.x (strict) | Type safety, Claude Code native |
-| Runtime | Node.js 20+ | LTS, required for ONNX |
-| Package manager | npm | Simplest, no workspace needed for single package |
-| Build | tsc | No bundler needed for a Node.js CLI tool |
-| Test framework | Vitest | Fast, ESM-native, good DX |
+| Runtime | Node.js 20+ | LTS |
+| CLI framework | commander | Standard, lightweight |
+| Interactive prompts | enquirer | Better DX than readline |
+| Validation | Zod | Runtime validation, good TS inference |
+| Tests | Vitest | Fast, ESM-native |
 | Linting | ESLint 9 (flat config) + Prettier | Industry standard |
-| SQLite | better-sqlite3 (primary), sql.js (fallback) | Fast sync API for Node.js |
-| Code parsing | tree-sitter (via node-tree-sitter) | Real ASTs for 100+ languages |
-| Embeddings | @huggingface/transformers (ONNX) | Local, no API keys needed |
-| CI integration | @octokit/rest | Official GitHub API client |
-| MCP protocol | @modelcontextprotocol/sdk | Official MCP SDK |
-| Schema validation | Zod | Runtime validation, good TS inference |
+| Build | tsc | No bundler needed for CLI |
+
+---
+
+## Implementation Phases
+
+### Phase 1: Foundation
+- Project scaffold (package.json, tsconfig, eslint, vitest, prettier)
+- CLI skeleton with commander (`anvil init`, `anvil doctor`)
+- Zod schemas for detection results (`src/detector/types.ts`)
+- Detection orchestrator interface
+- Unit test infrastructure
+
+### Phase 2: Detectors (Node.js/TS)
+- Language detector (package.json → Node.js/TypeScript)
+- Package manager detector (lockfile detection)
+- Test framework detector (vitest, jest, mocha from scripts/configs)
+- Build system detector (tsc, vite, webpack, esbuild from scripts/configs)
+- CI provider detector (.github/workflows/ → GitHub Actions)
+- Linter detector (eslint, prettier, biome from configs)
+- Unit tests for each detector + integration test with fixture project
+
+### Phase 3: Detectors (Python)
+- Language detector (pyproject.toml, setup.py, requirements.txt)
+- Package manager detector (pip, poetry, uv, pipenv)
+- Test framework detector (pytest, unittest)
+- Build system detector (setuptools, hatch, maturin)
+- Linter detector (ruff, black, flake8, mypy)
+- Unit tests + Python fixture project
+
+### Phase 4: Generators
+- CLAUDE.md generator (string interpolation + detected context)
+- .mcp.json generator (server selection based on detected stack)
+- Hooks config generator (formatter, linter, dangerous command blocker)
+- Slash commands generator
+- Integration test: detect → generate → validate output
+
+### Phase 5: CLI Polish
+- Interactive mode (prompt when detection is ambiguous)
+- `--dry-run` flag (show what would be generated)
+- `--force` flag (overwrite existing files)
+- `anvil doctor` implementation
+- Error handling audit
+- Cross-platform testing
+
+### Phase 6: Publish
+- npm publish workflow (.github/workflows/release.yml)
+- Final documentation pass
 
 ---
 
@@ -220,176 +270,33 @@ Output: { total: number, diff: number, uncovered_files: Array<{ path, coverage }
 
 ### Testing Strategy
 
-**Unit tests** (target: 90%+ coverage of `src/`)
-- Every tool handler tested with mocked backends
-- SQLite store tested with in-memory databases
-- Embedding generation tested with fixture vectors
-- Tree-sitter parsing tested against fixture repos
-- CI parsers tested against recorded API responses
+- **Unit tests** (90%+ coverage): One test file per detector and generator. Mock filesystem for detectors, validate output strings for generators.
+- **Integration tests**: Run `anvil init` against fixture projects, verify generated files match expected output.
+- **Edge cases**: Empty projects, corrupted configs, monorepos, mixed-language projects.
 
-**Integration tests**
-- Full MCP protocol: connect → initialize → tools/list → tools/call → verify response
-- Memory round-trip: store → search → verify similarity ordering
-- Indexer end-to-end: parse fixture repo → query symbols → verify graph
-- CI integration: mock GitHub API → parse responses → verify output
+### Test Patterns
 
-**No UI tests needed** — this is a CLI/MCP server with no UI.
-
-**Test patterns:**
-- London School TDD for tool handlers (mock dependencies, test behavior)
-- Chicago School for data layer (real SQLite, real tree-sitter, verify state)
-- Recorded HTTP responses for CI tests (no live API calls in CI)
-
-### Code Quality
-
-```json
-// eslint.config.js highlights
-{
-  "rules": {
-    "@typescript-eslint/no-explicit-any": "error",
-    "@typescript-eslint/strict-boolean-expressions": "error",
-    "@typescript-eslint/no-floating-promises": "error",
-    "no-console": "error"  // use structured logging
-  }
-}
-```
-
-- **Strict TypeScript**: `strict: true`, `noUncheckedIndexedAccess: true`
-- **No `any`**: Every type explicitly defined
-- **No floating promises**: All async operations awaited or explicitly voided
-- **Prettier on save**: Consistent formatting, no style debates
-- **Max file length**: 400 lines (enforced by lint rule)
-
-### CI/CD Pipeline
-
-#### `ci.yml` — Runs on Every PR and Push to Main
-
-```yaml
-jobs:
-  quality:
-    steps:
-      - Checkout
-      - Setup Node 20
-      - npm ci
-      - npm run lint          # ESLint + Prettier check
-      - npm run typecheck     # tsc --noEmit
-      - npm run test          # Vitest with coverage
-      - Upload coverage to Codecov
-      - Fail if coverage < 80%
-
-  security:
-    steps:
-      - npm audit --audit-level=high
-      - CodeQL analysis (GitHub native)
-
-  build:
-    needs: [quality, security]
-    steps:
-      - npm run build
-      - Verify dist/ output exists
-      - Smoke test: node dist/index.js --help
-```
-
-#### `release.yml` — Runs on Version Tags
-
-```yaml
-on:
-  push:
-    tags: ['v*']
-jobs:
-  publish:
-    steps:
-      - Run full test suite
-      - npm run build
-      - npm publish
-      - Create GitHub Release with changelog
-```
-
-### Version Control
-
-- **Trunk-based development**: Short-lived feature branches off `main`
-- **Conventional Commits**: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`
-- **Squash merges**: Clean linear history on main
-- **Protected main branch**: Requires passing CI + 1 review
-- **Automated changelog**: Generated from conventional commits via `standard-version` or `changesets`
-- **Semantic versioning**: Breaking changes = major, features = minor, fixes = patch
-
-### Documentation
-
-- **README.md**: Installation, quick start, tool reference — nothing else
-- **CLAUDE.md**: Build commands, test commands, architecture overview for Claude Code
-- **docs/architecture.md**: Technical deep-dive, written during implementation
-- **Inline JSDoc**: On all public functions and types, nothing on private internals
-- **No aspirational documentation**: Only document what exists and works
-
----
-
-## Implementation Phases
-
-### Phase 1: Foundation
-- Project scaffold (package.json, tsconfig, eslint, vitest, CI pipeline)
-- MCP server skeleton (initialize, tools/list, tools/call routing)
-- SQLite memory backend (store, retrieve, list, delete)
-- Unit tests for memory backend
-- Integration test for MCP protocol
-
-### Phase 2: Memory Tools
-- Local embedding generation (ONNX runtime with all-MiniLM-L6-v2)
-- Semantic search (cosine similarity over embeddings)
-- Memory MCP tools (memory_store, memory_search, memory_list, memory_forget)
-- Fallback to TF-IDF when ONNX unavailable
-- Full test coverage for memory tools
-
-### Phase 3: Codebase Intelligence
-- Tree-sitter integration (TypeScript, JavaScript, Python, Go initially)
-- Symbol extraction (functions, classes, types, exports)
-- Dependency graph construction (import/export analysis)
-- Incremental indexing (mtime-based change detection)
-- Codebase MCP tools (codebase_index, codebase_query, codebase_symbols)
-- Integration tests against fixture repos
-
-### Phase 4: CI/CD Integration
-- GitHub Actions API client (via @octokit/rest)
-- Workflow run status fetching
-- Log parsing (extract errors, annotations, failed steps)
-- Coverage report parsing (lcov, istanbul)
-- CI MCP tools (ci_status, ci_logs, ci_coverage)
-- Tests with recorded API responses
-
-### Phase 5: Project Scaffolder
-- Analyze existing project (detect package manager, test framework, linter)
-- Generate CLAUDE.md with actual build/test/lint commands
-- Generate Claude Code hooks config (.claude/settings.json)
-- `npx anvil init` command
-
-### Phase 6: Hardening
-- Error handling audit (every failure path tested)
-- Performance profiling (memory search latency, index build time)
-- Add HNSW index if brute-force search is too slow at scale
-- Binary distribution (prebuild native dependencies)
-- Documentation finalization
+- London School TDD for detectors and generators (mock fs, test behavior)
+- Fixture-based for integration tests (real project directories)
+- No live API calls — all filesystem-based
 
 ---
 
 ## What We Explicitly Won't Build
 
-- **Agent orchestration frameworks** — Claude Code's Task tool already does this
-- **Swarm coordination** — Parallel sub-agents share a filesystem, no coordination layer needed
-- **Neural networks / RL algorithms** — Claude IS the neural network
-- **Consensus protocols** — There's no distributed system
-- **Plugin registries** — Solve real problems first
-- **Duplicate CLI wrappers** — One package, one entry point
-- **Anything that returns mock data** — Every tool does real work or doesn't exist
+- **MCP server** — Claude orchestrates existing servers. No glue server needed for v1.
+- **Memory, embeddings, vector search** — Delegated to mcp-memory-service
+- **Code parsing, AST analysis** — Delegated to lsmcp / tree-sitter servers
+- **GitHub API integration** — Delegated to github-mcp-server
+- **Coverage parsing** — Delegated to test-coverage-mcp
+- **Agent orchestration, swarm coordination** — Claude Code's Task tool handles this
+- **Anything that returns mock data** — Every generated file is based on real detection
 
 ---
 
 ## Success Criteria
 
-The project is useful when a developer can:
-
-1. Start a new Claude Code session and have it automatically recall context from the previous session
-2. Ask "what files would be affected if I change this interface?" and get an accurate answer without Claude reading every file
-3. See why CI failed and have Claude fix the issue without manual log copying
-4. Run `npx anvil init` on any repo and get a useful CLAUDE.md + hooks config
-
-Each of these must be tested, measured, and real.
+1. Run `npx anvil init` on a Node.js/TypeScript project → get a working CLAUDE.md, configured MCP servers, and useful hooks
+2. Run `npx anvil init` on a Python project → same quality output
+3. Run `anvil doctor` → clear report of what's working and what's missing
+4. A developer who has never configured Claude Code MCP servers can be fully set up in under 2 minutes

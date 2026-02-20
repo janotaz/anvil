@@ -1,6 +1,10 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with code in this repository.
+
+## Project Overview
+
+Anvil is a scaffolder for Claude Code. It analyzes a developer's project and generates tailored configuration (CLAUDE.md, MCP servers, hooks, slash commands). No custom MCP server — it configures existing battle-tested servers.
 
 ## Build & Test Commands
 
@@ -14,18 +18,17 @@ npm run test             # Run all tests (vitest)
 npm run test:unit        # Unit tests only
 npm run test:integration # Integration tests only
 npm run test:coverage    # Tests with coverage report
-vitest run tests/unit/memory/store.test.ts  # Run single test file
+vitest run tests/unit/detector/language.test.ts  # Run single test file
 ```
 
 ## Architecture
 
-Single npm package, single MCP server entry point. Three tool groups:
+Single npm package, CLI entry point. Two module groups:
 
-- **Memory tools** (`src/tools/memory.ts`): Persistent cross-session storage with semantic search. Backend is SQLite (`src/memory/store.ts`) + local ONNX embeddings (`src/memory/embeddings.ts`).
-- **Codebase tools** (`src/tools/codebase.ts`): Structural repo understanding via tree-sitter. Parser in `src/indexer/parser.ts`, dependency graph in `src/indexer/graph.ts`.
-- **CI tools** (`src/tools/ci.ts`): GitHub Actions integration. API client in `src/ci/github-actions.ts`, log/coverage parsers in `src/ci/parsers.ts`.
+- **Detectors** (`src/detector/`): Analyze project files to extract language, package manager, test framework, build system, CI provider, linter. Each detector reads config files (no command execution). Results typed with Zod schemas in `src/detector/types.ts`.
+- **Generators** (`src/generator/`): Produce output files from detection results. CLAUDE.md (`claude-md.ts`), .mcp.json (`mcp-config.ts`), hooks (`hooks.ts`), slash commands (`slash-commands.ts`). String interpolation, no templating engine.
 
-MCP server (`src/server.ts`) handles JSON-RPC 2.0 over stdio. Tools registered in `src/tools/index.ts`.
+CLI (`src/cli/`) uses commander for commands (`init`, `doctor`) and enquirer for interactive prompts.
 
 ## Code Standards
 
@@ -33,23 +36,31 @@ MCP server (`src/server.ts`) handles JSON-RPC 2.0 over stdio. Tools registered i
 - No `any` — every type explicit
 - No floating promises — all async awaited
 - Max 400 lines per file
-- No console.log — use structured logging
+- No console.log — use structured output for CLI
 - All public functions and types have JSDoc
 - Zod for runtime validation at system boundaries
 
 ## Testing
 
-- Vitest, London School TDD for tool handlers (mock deps, test behavior)
-- Chicago School for data layer (real SQLite, real tree-sitter)
-- Recorded HTTP fixtures for CI tests (no live API calls)
+- Vitest, London School TDD for detectors and generators (mock filesystem, test behavior)
+- Fixture-based for integration tests (real project directories in `tests/fixtures/`)
+- No live API calls — all filesystem-based
 - Target: 90%+ coverage on src/
-- Test files mirror src/ structure under tests/unit/ and tests/integration/
 
 ## File Organization
 
-- `src/` — All source code
-- `tests/unit/` — Unit tests
+- `src/cli/` — CLI entry point and commands
+- `src/detector/` — Project detection logic
+- `src/generator/` — Output file generation
+- `tests/unit/` — Unit tests (mirror src/ structure)
 - `tests/integration/` — Integration tests
-- `tests/fixtures/` — Test data (sample repos, recorded API responses)
+- `tests/fixtures/` — Sample project directories for testing
 - `docs/` — Documentation
 - No files in root except config (package.json, tsconfig, etc.)
+
+## Key Context
+
+- See `docs/plan.md` for full implementation plan
+- See `docs/assessment.md` for prior art research and ecosystem analysis
+- See `docs/status.md` for current project state
+- v1 supports Node.js/TypeScript + Python detection. Rust/Go in v1.1.

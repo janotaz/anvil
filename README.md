@@ -1,88 +1,62 @@
 # Anvil
 
-A Claude Code MCP server that fills the gaps Claude Code can't cover on its own: cross-session memory, structural codebase intelligence, and CI/CD feedback loops.
+A scaffolder for Claude Code. Analyzes your project and generates tailored configuration — CLAUDE.md, MCP servers, hooks, and slash commands — so Claude Code works well out of the box.
 
 ## What It Does
-
-Anvil is a single MCP server exposing three tool groups:
-
-- **Memory** — Persistent cross-session storage with semantic search. SQLite backend + local ONNX embeddings (`all-MiniLM-L6-v2`). No external API calls.
-- **Codebase Intelligence** — Structural understanding of your repo via tree-sitter. Dependency graphs, symbol lookup, impact analysis ("what breaks if I change this interface?").
-- **CI/CD Integration** — GitHub Actions status, parsed failure logs, and diff coverage reports piped directly into Claude's context.
-
-## Why
-
-Claude Code is capable out of the box — file ops, shell execution, sub-agents, web access. But it has real gaps:
-
-1. Every session starts from zero. No memory of previous sessions.
-2. No structural understanding of codebases. It greps and globs but can't answer "what depends on this module?" without reading everything.
-3. No visibility into CI. Tests pass locally, fail in CI, and Claude has no way to know.
-
-Anvil addresses these three gaps. Nothing more.
-
-## Installation
-
-```bash
-npm install anvil
-```
-
-Add to your Claude Code MCP config:
-
-```json
-{
-  "mcpServers": {
-    "anvil": {
-      "command": "npx",
-      "args": ["anvil"]
-    }
-  }
-}
-```
-
-## Tools
-
-### Memory
-
-| Tool | Description |
-|------|-------------|
-| `memory_store` | Store a key-value pair with optional tags and namespace. Generates embeddings automatically. |
-| `memory_search` | Semantic search across stored memories using cosine similarity. |
-| `memory_list` | List stored entries, filterable by namespace or tag. |
-| `memory_forget` | Delete entries by key, namespace, or age. |
-
-### Codebase Intelligence
-
-| Tool | Description |
-|------|-------------|
-| `codebase_index` | Parse and index a directory with tree-sitter. Incremental — only re-parses changed files. |
-| `codebase_query` | Query the dependency graph: dependents, dependencies, symbol lookup, impact analysis. |
-| `codebase_symbols` | List symbols (functions, classes, types) in a file. |
-
-### CI/CD
-
-| Tool | Description |
-|------|-------------|
-| `ci_status` | Get latest GitHub Actions workflow runs for a branch or PR. |
-| `ci_logs` | Download and parse CI logs, extracting errors and annotations. |
-| `ci_coverage` | Parse coverage artifacts and compute diff coverage for changed lines. |
-
-## Project Scaffolding
 
 ```bash
 npx anvil init
 ```
 
-Analyzes your project and generates a `CLAUDE.md` with your actual build/test/lint commands, plus Claude Code hooks configuration.
+Anvil inspects your project and generates:
 
-## Tech Stack
+- **CLAUDE.md** with your actual build, test, and lint commands
+- **.mcp.json** configuring proven MCP servers for memory, codebase intelligence, CI, and coverage
+- **Hooks** for auto-formatting, lint checks, and dangerous command blocking
+- **Slash commands** for common workflows (review, test, etc.)
 
-- TypeScript (strict mode), Node.js 20+
-- SQLite via better-sqlite3
-- Tree-sitter for code parsing
-- ONNX Runtime for local embeddings
-- Octokit for GitHub Actions API
-- MCP SDK for protocol handling
-- Zod for runtime validation
+Plus `anvil doctor` to validate that everything is configured correctly.
+
+## Why
+
+Claude Code is capable out of the box, but setting it up well for a specific project takes work:
+
+1. Writing a good CLAUDE.md requires knowing what matters (commands, architecture, conventions).
+2. The MCP ecosystem has dozens of servers — choosing the right ones and configuring them is friction.
+3. Hooks and slash commands are powerful but most developers don't set them up.
+
+Anvil does the setup work. It doesn't build new AI capabilities — it configures the best existing ones.
+
+## MCP Servers Anvil Configures
+
+Anvil selects from battle-tested MCP servers based on your project:
+
+| Capability | Server | Why |
+|------------|--------|-----|
+| Cross-session memory | [mcp-memory-service](https://github.com/doobidoo/mcp-memory-service) | Hybrid BM25+vector search, local ONNX embeddings, SQLite, 1.4k stars |
+| Codebase intelligence | [lsmcp](https://github.com/mizchi/lsmcp) (TS/Go/Rust) or [mcp-server-tree-sitter](https://github.com/wrale/mcp-server-tree-sitter) | Real LSP or tree-sitter AST analysis |
+| GitHub integration | [github-mcp-server](https://github.com/github/github-mcp-server) | Official GitHub server, 27k stars, Actions support |
+| Test coverage | [test-coverage-mcp](https://github.com/goldbergyoni/test-coverage-mcp) | LCOV parsing, diff-from-baseline tracking |
+
+## What Anvil Detects
+
+Anvil parses your config files to extract real information (not guesses):
+
+- **Language**: Node.js/TypeScript, Python (v1). Rust, Go planned.
+- **Package manager**: npm, yarn, pnpm, bun, pip, poetry, uv
+- **Test framework**: vitest, jest, mocha, pytest, unittest
+- **Build system**: tsc, vite, webpack, esbuild, setuptools, hatch
+- **CI provider**: GitHub Actions (v1). GitLab, CircleCI planned.
+- **Linter**: eslint, prettier, biome, ruff, black, mypy
+
+## Commands
+
+```bash
+npx anvil init              # Detect project and generate config
+npx anvil init --local      # Write MCP config to .claude/settings.local.json (gitignored)
+npx anvil init --dry-run    # Show what would be generated without writing
+npx anvil doctor            # Validate existing configuration
+```
 
 ## Development
 

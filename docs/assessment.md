@@ -56,14 +56,58 @@ Claude Code's hooks can run linters, but there's no structured framework for enf
 ### The Core Insight
 claude-flow's most effective component was its CLAUDE.md — a 1,000+ line prompt engineering framework that instructs Claude Code how to use its native Task tool. The npm package primarily delivered that prompt plus a key-value store.
 
-## Design Principles for Anvil
+## MCP Ecosystem Analysis (February 2026)
 
-Based on this assessment:
+After the claude-flow audit, we evaluated whether to build these capabilities from scratch or use existing MCP servers. The ecosystem has matured fast — production-ready servers exist for every gap identified above.
 
-1. **Only build what Claude Code can't do natively** — Don't wrap existing capabilities in ceremony
-2. **Every tool must do real work** — No stubs, no mock returns, no facades
-3. **Persistence is the core value** — Cross-session memory is the #1 gap
-4. **Structural understanding beats token-burning** — Index the codebase once, query it efficiently
-5. **CI integration closes the loop** — Local tests aren't enough for enterprise work
-6. **Prove it with tests** — If a feature can't be tested, it doesn't exist
-7. **Small surface area** — One MCP server, a handful of tools, a good CLAUDE.md
+### Memory / Cross-Session Persistence
+
+| Server | Stars | Approach | Notes |
+|--------|-------|----------|-------|
+| [@modelcontextprotocol/server-memory](https://github.com/modelcontextprotocol/servers/tree/main/src/memory) | (official) | Knowledge graph, JSONL file | No semantic search. Literal text matching only. |
+| [mcp-memory-service](https://github.com/doobidoo/mcp-memory-service) | 1.4k | Hybrid BM25+vector, SQLite, local ONNX embeddings | **Best in class.** v10.16, 2k+ commits. True semantic search. |
+| [Recall](https://github.com/joseairosa/recall) | — | Redis/Valkey, AES-256 encryption | SaaS or self-hosted. Team sharing. |
+| [@shodh/memory-mcp](https://www.npmjs.com/package/@shodh/memory-mcp) | — | 3-tier cognitive architecture, MiniLM-L6 | Fully local. Same embedding model we planned to use. |
+
+**Verdict:** Cross-session memory is a solved problem. mcp-memory-service is the clear leader.
+
+### Codebase Intelligence
+
+| Server | Stars | Approach | Notes |
+|--------|-------|----------|-------|
+| [lsmcp](https://github.com/mizchi/lsmcp) | 439 | Real LSP servers (tsgo, rust-analyzer, gopls) | **Semantically richest.** Actual IDE-grade refactoring, go-to-definition, rename. TypeScript. |
+| [mcp-server-tree-sitter](https://github.com/wrale/mcp-server-tree-sitter) | 264 | Tree-sitter AST analysis | Mature. 25+ tools. Python. |
+| [code-graph-mcp](https://github.com/entrepeneur4lyf/code-graph-mcp) | 79 | ast-grep, 25+ languages, dep analysis | PageRank, circular dep detection. Python. |
+| [code-index-mcp](https://github.com/johnhuang316/code-index-mcp) | — | Tree-sitter + persistent caching | Incremental with file change detection. |
+
+**Verdict:** Multiple mature implementations. lsmcp is the most capable for TypeScript/Go/Rust. tree-sitter servers cover broader language support.
+
+### CI/CD Integration
+
+| Server | Stars | Approach | Notes |
+|--------|-------|----------|-------|
+| [github-mcp-server](https://github.com/github/github-mcp-server) | 27k | Official GitHub server | Actions, PRs, issues, code security. Log retrieval. |
+| [test-coverage-mcp](https://github.com/goldbergyoni/test-coverage-mcp) | 39 | LCOV parsing, diff-from-baseline | Token-efficient (<100 tokens). Session-scoped diff coverage. |
+
+**Verdict:** Official GitHub server covers Actions status and logs. test-coverage-mcp handles coverage tracking. The only gap was CI artifact-based diff coverage, which test-coverage-mcp partially addresses.
+
+### The Strategic Conclusion
+
+Every feature we planned to build from scratch has production-ready alternatives. Building our own implementations would mean:
+- Competing against official servers (Anthropic memory, GitHub MCP)
+- Reimplementing commodity features
+- Significant effort for marginal differentiation
+
+The only unique value we could offer is **integration between tools** — but Claude already orchestrates multi-server workflows natively. The glue is better expressed as CLAUDE.md instructions and hooks than as another MCP server.
+
+This led to Anvil's pivot: from MCP server to **scaffolder**. See `docs/plan.md` for the revised architecture.
+
+## Design Principles for Anvil (Revised)
+
+Based on both the claude-flow audit and the ecosystem analysis:
+
+1. **Don't reinvent the wheel** — Use the best existing MCP servers, don't rebuild them
+2. **Configure, don't code** — The value is in setup and orchestration, not reimplementation
+3. **Every generated file is based on real detection** — No guesses, no mock data
+4. **Prove it with tests** — If a feature can't be tested, it doesn't exist
+5. **Small surface area** — One CLI tool, a few generated files, done in 2 minutes
