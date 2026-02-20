@@ -1,0 +1,50 @@
+{
+  "name": "anvil-claude",
+  "version": "0.1.0",
+  "description": "A scaffolder for Claude Code. Generates tailored CLAUDE.md, MCP server config, hooks, and slash commands.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "anvil": "dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/ tests/ && prettier --check src/ tests/",
+    "lint:fix": "eslint --fix src/ tests/ && prettier --write src/ tests/",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit/",
+    "test:integration": "vitest run tests/integration/",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "mcp",
+    "scaffolder",
+    "developer-tools"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "files": [
+    "dist/"
+  ],
+  "dependencies": {
+    "commander": "^13.1.0",
+    "enquirer": "^2.4.1",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "@vitest/coverage-v8": "^3.0.0",
+    "eslint": "^9.20.0",
+    "@eslint/js": "^9.20.0",
+    "typescript-eslint": "^8.24.0",
+    "typescript": "^5.7.0",
+    "prettier": "^3.5.0",
+    "vitest": "^3.0.0"
+  }
+}
